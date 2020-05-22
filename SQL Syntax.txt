@@ -1,0 +1,127 @@
+-- Question 1 -- 
+WITH t1 AS 
+( 
+           SELECT     f.film_id     AS film_id_1, 
+                      f.title       AS film_title, 
+                      c.NAME        AS category_name 
+           FROM       film          AS f 
+           INNER JOIN film_category AS fc 
+           ON         f.film_id = fc.film_id 
+           INNER JOIN category AS c 
+           ON         fc.category_id = c.category_id 
+           WHERE      c.NAME IN ('Animation', 
+                                 'Children', 
+                                 'Classics', 
+                                 'Comedy', 
+                                 'Family', 
+                                 'Music')), t2 AS 
+( 
+                SELECT DISTINCT(i.film_id)                                       AS film_id_2, 
+                                Count(r.rental_id) OVER (partition BY i.film_id) AS rental_count 
+                FROM            inventory                                        AS i 
+                INNER JOIN      rental                                           AS r 
+                ON              i.inventory_id = r.inventory_id 
+                ORDER BY        film_id_2) 
+
+SELECT     t1.film_title, 
+           t1.category_name, 
+           t2.rental_count 
+FROM       t1 
+INNER JOIN t2 
+ON         t1.film_id_1 = t2.film_id_2 
+ORDER BY   t2.rental_count DESC, 
+           t1.film_title LIMIT 10;
+
+ -- Question 2 -- 
+WITH t1 AS 
+( 
+           SELECT     f.film_id     AS film_id_1, 
+                      f.title       AS film_title, 
+                      c.NAME        AS category_name,
+		      f.rental_duration,
+		      NTILE(4) OVER (ORDER BY rental_duration) AS rental_standard_quartile 
+           FROM       film          AS f 
+           INNER JOIN film_category AS fc 
+           ON         f.film_id = fc.film_id 
+           INNER JOIN category AS c 
+           ON         fc.category_id = c.category_id 
+           WHERE      c.NAME IN ('Animation', 
+                                 'Children', 
+                                 'Classics', 
+                                 'Comedy', 
+                                 'Family', 
+                                 'Music')), t2 AS
+( 
+                SELECT DISTINCT(i.film_id)                                       AS film_id_2, 
+                                Count(r.rental_id) OVER (partition BY i.film_id) AS rental_count 
+                FROM            inventory                                        AS i 
+                INNER JOIN      rental                                           AS r 
+                ON              i.inventory_id = r.inventory_id 
+                ORDER BY        film_id_2) 
+
+SELECT		t1.film_title,
+    		t1.category_name,
+    		t1.rental_duration,
+    		t1.rental_standard_quartile,
+    		t2.rental_count
+FROM		t1
+INNER JOIN	t2
+ON		t1.film_id_1 = t2.film_id_2
+ORDER BY	t1.rental_standard_quartile,
+    		t2.rental_count DESC;
+
+
+ -- Question 3 -- 
+WITH t1 AS
+(
+	SELECT		EXTRACT(MONTH FROM p.payment_date) AS payment_month,
+    			c.first_name || ' ' || c.last_name AS customer_full_name,
+    			COUNT(p.rental_id) 		   AS pay_count_per_month,
+    			SUM(p.amount) 			   AS pay_amount_per_month
+	FROM		payment AS p
+	INNER JOIN	customer AS c
+	ON		p.customer_id = c.customer_id
+	GROUP BY	c.customer_id, 
+  			payment_month
+	ORDER BY	customer_full_name,
+    			payment_month), t2 AS 
+(   
+		SELECT		t1.payment_month,
+    				t1.customer_full_name,
+    				t1.pay_count_per_month,
+    				MAX(t1.pay_amount_per_month) AS max_amount_paid,
+    				RANK() OVER (PARTITION BY payment_month ORDER BY MAX(t1.pay_amount_per_month) DESC) AS rank_max_amt
+		FROM		t1
+		GROUP BY	1, 2, 3)
+    
+SELECT		DISTINCT(t2.payment_month), 
+    		t2.customer_full_name,
+    		t2.pay_count_per_month,
+    		t2.max_amount_paid
+FROM		t2
+INNER JOIN	t1
+ON		t2.payment_month = t1.payment_month
+WHERE		t2.rank_max_amt = '1'
+ORDER BY	t2.payment_month;
+
+-- Question 4 --  
+WITH t1 AS
+(
+	SELECT		EXTRACT(MONTH FROM p.payment_date) AS payment_month,
+    			c.first_name || ' ' || c.last_name AS customer_full_name,
+    			COUNT(p.rental_id) 		   AS pay_count_per_month,
+    			SUM(p.amount) 			   AS pay_amount_per_month
+	FROM		payment AS p
+	INNER JOIN	customer AS c
+	ON		p.customer_id = c.customer_id
+	GROUP BY	c.customer_id, 
+  			payment_month
+	ORDER BY	customer_full_name,
+    			payment_month)
+
+SELECT	payment_month,
+    	customer_full_name,
+    	pay_count_per_month,
+    	pay_amount_per_month
+FROM	t1
+WHERE	customer_full_name IN ('Alex Gresham', 'Eleanor Hunt', 'Mildred Bailey');
